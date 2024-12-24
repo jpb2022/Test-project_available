@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Volunteer Hour Tracker</title>
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.6.1/dist/web3.min.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+        margin: 50px;
+      }
+      input,
+      button {
+        padding: 10px;
+        margin: 10px;
+        width: 80%;
+        max-width: 400px;
+      }
+      #status {
+        margin-top: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Volunteer Hour Tracker</h1>
+    <div>
+      <button id="connectButton">Connect MetaMask</button>
+      <p id="account"></p>
+    </div>
+
+    <h3>Log Volunteer Hours</h3>
+    <input
+      type="number"
+      id="hoursInput"
+      placeholder="Enter hours worked"
+      min="1"
+    />
+    <button id="logHoursButton">Log Hours</button>
+
+    <h3>Claim Tokens</h3>
+    <button id="claimTokensButton">Claim Tokens</button>
+
+    <div id="status"></div>
+
+    <script>
+      let web3;
+      let contract;
+      let account;
+
+      const contractABI = [
+        {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "address",
+              name: "volunteer",
+              type: "address",
+            },
+            {
+              indexed: false,
+              internalType: "uint256",
+              name: "tokensClaimed",
+              type: "uint256",
+            },
+          ],
+          name: "TokensClaimed",
+          type: "event",
+        },
+        {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "address",
+              name: "volunteer",
+              type: "address",
+            },
+            {
+              indexed: false,
+              internalType: "uint256",
+              name: "hoursWorked",
+              type: "uint256",
+            },
+          ],
+          name: "VolunteerHoursLogged",
+          type: "event",
+        },
+        {
+          inputs: [],
+          name: "claimTokens",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint256",
+              name: "hoursWorked",
+              type: "uint256",
+            },
+          ],
+          name: "logVolunteerHours",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "name",
+          outputs: [
+            {
+              internalType: "string",
+              name: "",
+              type: "string",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "symbol",
+          outputs: [
+            {
+              internalType: "string",
+              name: "",
+              type: "string",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "tokenRatePerHour",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "",
+              type: "address",
+            },
+          ],
+          name: "volunteerHours",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "",
+              type: "address",
+            },
+          ],
+          name: "volunteerTokens",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          stateMutability: "payable",
+          type: "receive",
+        },
+      ];
+      const contractAddress = "0xfB282f2fE523956D20a929A6c4C75cA8462B930E"; // Replace with your contract's deployed address
+
+      window.addEventListener("load", async () => {
+        if (window.ethereum) {
+          web3 = new Web3(window.ethereum);
+          try {
+            await ethereum.request({ method: "eth_requestAccounts" });
+            account = (await web3.eth.getAccounts())[0];
+            document.getElementById(
+              "account"
+            ).innerText = `Connected Account: ${account}`;
+            contract = new web3.eth.Contract(contractABI, contractAddress);
+            checkTokens();
+          } catch (error) {
+            console.error("Error connecting MetaMask:", error);
+          }
+        } else {
+          alert("Please install MetaMask to use this feature.");
+        }
+      });
+
+      document
+        .getElementById("connectButton")
+        .addEventListener("click", async () => {
+          if (window.ethereum) {
+            try {
+              await ethereum.request({ method: "eth_requestAccounts" });
+              account = (await web3.eth.getAccounts())[0];
+              document.getElementById(
+                "account"
+              ).innerText = `Connected Account: ${account}`;
+            } catch (error) {
+              console.error("Error connecting to MetaMask:", error);
+            }
+          }
+        });
+
+      // Log volunteer hours
+      document
+        .getElementById("logHoursButton")
+        .addEventListener("click", async () => {
+          const hours = parseInt(document.getElementById("hoursInput").value);
+          if (!hours || hours <= 0) {
+            alert("Please enter a valid number of hours.");
+            return;
+          }
+          try {
+            await contract.methods
+              .logVolunteerHours(hours)
+              .send({ from: account });
+            document.getElementById(
+              "status"
+            ).innerText = `Successfully logged ${hours} hours.`;
+            checkTokens(); // Update token balance after logging hours
+          } catch (error) {
+            console.error("Error logging hours:", error);
+            document.getElementById("status").innerText =
+              "Error logging hours.";
+          }
+        });
+
+      // Claim tokens
+      document
+        .getElementById("claimTokensButton")
+        .addEventListener("click", async () => {
+          try {
+            await contract.methods.claimTokens().send({ from: account });
+            document.getElementById("status").innerText =
+              "Tokens claimed successfully!";
+            checkTokens(); // Update token balance after claiming
+          } catch (error) {
+            console.error("Error claiming tokens:", error);
+            document.getElementById("status").innerText =
+              "Error claiming tokens.";
+          }
+        });
+
+      // Check token balance
+      async function checkTokens() {
+        const tokens = await contract.methods
+          .volunteerTokens()
+          .call({ from: account });
+        document.getElementById(
+          "status"
+        ).innerText = `You have ${web3.utils.fromWei(tokens, "ether")} tokens.`;
+      }
+    </script>
+  </body>
+</html>
